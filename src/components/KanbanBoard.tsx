@@ -1,12 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styles from "./KanbanBoard.module.css";
-
-type Task = {
-	id: number;
-	title: string;
-};
+// Import your API utilities and Task type (without an id)
+import { Task, getAll, addTask } from "../api/api";
 
 type Column = {
 	id: string;
@@ -15,29 +12,42 @@ type Column = {
 };
 
 const initialColumns: Column[] = [
-	{ id: "todo", title: "To Do", tasks: [{ id: 1, title: "Task 1" }] },
-	{
-		id: "inProgress",
-		title: "In Progress",
-		tasks: [{ id: 2, title: "Task 2" }],
-	},
-	{ id: "done", title: "Done", tasks: [{ id: 3, title: "Task 3" }] },
+	{ id: "todo", title: "To Do", tasks: [] },
+	{ id: "inProgress", title: "In Progress", tasks: [] },
+	{ id: "done", title: "Done", tasks: [] },
 ];
 
 const KanbanBoard: React.FC = () => {
+	// Column state
 	const [columns, setColumns] = useState<Column[]>(initialColumns);
+	// State for drag-and-drop
 	const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+	// State for the new task form
+	const [form, setForm] = useState<Task>({
+		title: "",
+		description: "",
+		duration: "",
+	});
 
-	// State for new task title
-	const [newTaskTitle, setNewTaskTitle] = useState("");
+	// Fetch tasks from the backend on mount and add them to "todo" column
+	useEffect(() => {
+		getAll().then((fetchedTasks) => {
+			setColumns((prevCols) =>
+				prevCols.map((col) =>
+					col.id === "todo" ? { ...col, tasks: fetchedTasks } : col
+				)
+			);
+		});
+	}, []);
 
+	// Handle drag start by storing the dragged task
 	const handleDragStart = (task: Task) => {
 		setDraggedTask(task);
 	};
 
+	// Handle drop: remove the task from its current column and add it to the target column
 	const handleDrop = (columnId: string) => {
 		if (!draggedTask) return;
-
 		setColumns((prevColumns) =>
 			prevColumns.map((col) => {
 				if (col.id === columnId) {
@@ -45,60 +55,74 @@ const KanbanBoard: React.FC = () => {
 				}
 				return {
 					...col,
-					tasks: col.tasks.filter(
-						(task) => task.id !== draggedTask.id
-					),
+					tasks: col.tasks.filter((t) => t !== draggedTask),
 				};
 			})
 		);
-
 		setDraggedTask(null);
 	};
 
-	// Add new task to the "To Do" column (or whichever column you prefer)
-	const handleAddTask = () => {
-		const trimmedTitle = newTaskTitle.trim();
-		if (!trimmedTitle) return;
+	// Handle changes in the form fields
+	const handleChange = (
+		e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+	) => {
+		setForm({ ...form, [e.target.name]: e.target.value });
+	};
 
-		// Create a new task object
-		const newTask: Task = {
-			id: Date.now(), // or any unique ID logic
-			title: trimmedTitle,
-		};
-
-		// Add the new task into the "todo" column
+	// Handle form submission to add a new task
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!form.title || !form.description || !form.duration) {
+			alert("All fields are required!");
+			return;
+		}
+		const createdTask = await addTask(form);
+		if (!createdTask) return;
 		setColumns((prevColumns) =>
-			prevColumns.map((col) => {
-				if (col.id === "todo") {
-					return { ...col, tasks: [...col.tasks, newTask] };
-				}
-				return col;
-			})
+			prevColumns.map((col) =>
+				col.id === "todo"
+					? { ...col, tasks: [...col.tasks, createdTask] }
+					: col
+			)
 		);
-
-		// Reset the input field
-		setNewTaskTitle("");
+		// Reset form fields after successful submission
+		setForm({ title: "", description: "", duration: "" });
 	};
 
 	return (
 		<div>
-			{/* Input field and button to add a new task */}
-			<div className={styles.taskInputContainer}>
-				<input
-					type="text"
-					value={newTaskTitle}
-					onChange={(e) => setNewTaskTitle(e.target.value)}
-					placeholder="Enter new task"
-					className={styles.taskInput}
-				/>
-				<button
-					onClick={handleAddTask}
-					className={styles.addTaskButton}
-				>
-					Add Task
-				</button>
+			<div className="container">
+				{/* New Task Form */}
+				<form onSubmit={handleSubmit} className={styles.form}>
+					<input
+						type="text"
+						name="title"
+						value={form.title}
+						onChange={handleChange}
+						placeholder="Title"
+						className={styles.input}
+					/>
+					<textarea
+						name="description"
+						value={form.description}
+						onChange={handleChange}
+						placeholder="Description"
+						className={styles.input}
+					/>
+					<input
+						type="text"
+						name="duration"
+						value={form.duration}
+						onChange={handleChange}
+						placeholder="Duration"
+						className={styles.input}
+					/>
+					<button type="submit" className={styles.button}>
+						Add Task
+					</button>
+				</form>
 			</div>
-
+			{/* Kanban Board Columns */}
 			<div className={styles.kanbanBoard}>
 				{columns.map((column) => (
 					<div
@@ -108,9 +132,10 @@ const KanbanBoard: React.FC = () => {
 						onDrop={() => handleDrop(column.id)}
 					>
 						<h2 className={styles.columnTitle}>{column.title}</h2>
-						{column.tasks.map((task) => (
+						{column.tasks.map((task, index) => (
+							// Use index as key since tasks do not have a unique id
 							<div
-								key={task.id}
+								key={index}
 								className={styles.task}
 								draggable
 								onDragStart={() => handleDragStart(task)}

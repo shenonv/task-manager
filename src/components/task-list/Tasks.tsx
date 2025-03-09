@@ -1,34 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import styles from "./Tasks.module.css"; // Import the CSS module
-
-type Task = {
-	title: string;
-	description: string;
-	duration: string;
-};
-
-// Function to fetch tasks
-async function getAll(): Promise<Task[]> {
-	try {
-		const response = await axios.get("http://localhost:4000/task/");
-		return response.data;
-	} catch (error) {
-		console.error("Error fetching tasks:", error);
-		return [];
-	}
-}
-
-// Function to add a new task
-async function addTask(task: Task) {
-	try {
-		const response = await axios.post("http://localhost:4000/task/", task);
-		return response.data;
-	} catch (error) {
-		console.error("Error adding task:", error);
-	}
-}
+import { Task, getAll, addTask } from "../../api/api";
 
 export default function Tasks() {
 	const [tasks, setTasks] = useState<Task[]>([]);
